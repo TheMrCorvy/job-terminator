@@ -1,6 +1,8 @@
 # Job Terminator 🤖💼
 
 > Autonomous Job Application Agent orchestrated via **n8n**, powered by **browser-use**, integrated with **Strapi V5**, and driven by your authenticated Google Chrome session.
+>
+> **Dual-Host Support**: Fully supported on both **macOS Sequoia (Mac Mini 2018 Intel / OrbStack)** and **Windows 11 (Docker Desktop / WSL 2)**.
 
 ---
 
@@ -17,21 +19,33 @@
 
 ---
 
-## 🖥️ Target Host Environment & System Architecture
+## 🖥️ Dual-Host Architecture Matrix
 
-This project is tailored to run on:
-- **Host PC**: Mac Mini 2018 (Intel Core i5 6-Core, x86_64, 32GB RAM)
-- **Host OS**: macOS Sequoia (macOS 15+)
-- **Container Engine**: [OrbStack](https://orbstack.dev/) (Lightweight, fast Docker & Linux engine for macOS)
-- **Orchestration**: Self-hosted n8n running in Docker via OrbStack
+Job Terminator is designed from the ground up to run seamlessly across both host environments:
+
+| Feature | 🍎 macOS Host | 🪟 Windows 11 Host |
+| :--- | :--- | :--- |
+| **Target Hardware** | Mac Mini 2018 (Intel Core i5, 32GB RAM) | Desktop / Laptop (x86_64, 16GB+ RAM) |
+| **Operating System** | macOS Sequoia (macOS 15+) | Windows 11 (22H2 / 23H2+) |
+| **Container Engine** | [OrbStack](https://orbstack.dev/) | [Docker Desktop](https://www.docker.com/products/docker-desktop/) (WSL 2) |
+| **Container-to-Host URL** | `http://host.docker.internal:8000` (or `mac.orb.local`) | `http://host.docker.internal:8000` |
+| **Package Manager** | Homebrew (`brew`) | winget / python.org |
+| **Python Version** | Python 3.11 or 3.12 | Python 3.11, 3.12, or 3.14 |
+| **Chrome Executable** | `/Applications/Google Chrome.app/...` | `C:\Program Files\Google\Chrome\Application\chrome.exe` |
+| **Chrome Launcher** | [`./scripts/launch-chrome.sh`](file:///C:/Users/gonza/OneDrive/Desktop/localhost/job-terminator/scripts/launch-chrome.sh) | [`.\scripts\launch-chrome.ps1`](file:///C:/Users/gonza/OneDrive/Desktop/localhost/job-terminator/scripts/launch-chrome.ps1) |
+| **CLI Trigger** | [`./scripts/manual-trigger.sh`](file:///C:/Users/gonza/OneDrive/Desktop/localhost/job-terminator/scripts/manual-trigger.sh) | [`.\scripts\manual-trigger.ps1`](file:///C:/Users/gonza/OneDrive/Desktop/localhost/job-terminator/scripts/manual-trigger.ps1) |
+
+---
+
+## 🏗️ System Workflow
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Strapi as Strapi V5 (Chaldea Foundation Center)
-    participant n8n as n8n Container (OrbStack)
-    participant Agent as Job Terminator (Host macOS Python)
-    participant Chrome as Chrome (Host macOS CDP Port 9222)
+    participant n8n as n8n Container (OrbStack or Docker Desktop)
+    participant Agent as Job Terminator (Host Python Service)
+    participant Chrome as Chrome GUI (Host CDP Port 9222)
     participant Portal as Job Board / Employer Portal
 
     Note over Strapi, n8n: 1. Workflow Initiation
@@ -46,7 +60,7 @@ sequenceDiagram
     Strapi-->>n8n: List of jobs (links, company, cover letters, custom CVs)
 
     loop For each job (Split In Batches: 1)
-        Note over n8n, Agent: 3. Dispatch via OrbStack Host Bridge
+        Note over n8n, Agent: 3. Dispatch via Host Gateway
         n8n->>Agent: POST http://host.docker.internal:8000/apply
         
         Note over Agent: 4. Resume & Profile Preparation
@@ -68,90 +82,118 @@ sequenceDiagram
 
 ---
 
-## 📦 Host PC Dependencies (macOS Sequoia on Intel Mac Mini)
+## 📦 Host Setup & Dependencies
 
-All required dependencies must be installed directly on the macOS host (outside containers) so the agent can interface with the desktop display server and the Chrome GUI.
+Choose the tab corresponding to your host operating system:
 
-### 1. Install Homebrew (Package Manager)
-If not already installed on your Mac Mini, install Homebrew (for Intel Macs, installs to `/usr/local`):
+### 🍎 Option A: macOS Sequoia Setup (Mac Mini Intel / OrbStack)
+
+#### 1. Install Host Packages via Homebrew
 ```bash
+# Install Homebrew if missing
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
 
-### 2. Install Core Host Packages
-Run the following brew command to install Python, Git, and Google Chrome:
-```bash
-# 1. Install Python 3.12 (or 3.11)
-brew install python@3.12
-
-# 2. Install Git
-brew install git
-
-# 3. Install Google Chrome (GUI browser for CDP control)
+# Install Python, Git, Google Chrome, and OrbStack
+brew install python@3.12 git
 brew install --cask google-chrome
-
-# 4. Install OrbStack (if not already installed)
 brew install --cask orbstack
 ```
 
-### 3. Verify Installations
+#### 2. Virtual Environment & Playwright
 ```bash
-python3 --version     # Should report Python 3.11.x or 3.12.x
-git --version         # Should report git version 2.x
-which "Google Chrome" # App exists in /Applications/Google Chrome.app
+cd ~/Desktop/localhost/job-terminator
+
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+playwright install chromium
+chmod +x scripts/*.sh
+```
+
+#### 3. Launch Chrome with CDP
+```bash
+./scripts/launch-chrome.sh
+```
+*(Log in to your job portals once in the opened window; cookies remain saved permanently in `~/.chrome-job-terminator`)*
+
+#### 4. Start the Service
+```bash
+source venv/bin/activate
+python -m src.main
 ```
 
 ---
 
-## 🚀 Setup Guide (Step-by-Step)
+### 🪟 Option B: Windows 11 Setup (Docker Desktop / WSL 2)
 
-### Step 1: Clone or Navigate to the Repository
-```bash
-cd ~/Desktop/localhost/job-terminator
-```
+#### 1. Install Host Prerequisites
+- **Python 3.11+**: Install via [python.org](https://www.python.org/) or PowerShell:
+  ```powershell
+  winget install Python.Python.3.12
+  ```
+- **Google Chrome**:
+  ```powershell
+  winget install Google.Chrome
+  ```
+- **Git for Windows**:
+  ```powershell
+  winget install Git.Git
+  ```
+- **Docker Desktop with WSL 2 backend**:
+  ```powershell
+  winget install Docker.DockerDesktop
+  ```
 
-### Step 2: Set Up Python Virtual Environment
-```bash
-# Create virtual environment using host Python
-python3 -m venv venv
+#### 2. Virtual Environment & Playwright
+Open PowerShell in the project directory:
+```powershell
+cd C:\Users\gonza\OneDrive\Desktop\localhost\job-terminator
 
-# Activate virtual environment
-source venv/bin/activate
-
-# Upgrade pip and install all project dependencies
-pip install --upgrade pip
+python -m venv venv
+.\venv\Scripts\activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
-
-# Install Playwright browser dependencies for Chromium
 playwright install chromium
 ```
 
-> [!NOTE]
-> On macOS, `playwright install chromium` downloads the headless shell and browser engines used internally by Playwright. For live automated sessions, `job-terminator` connects directly to your installed `/Applications/Google Chrome.app` via CDP port 9222.
+#### 3. Launch Chrome with CDP
+```powershell
+.\scripts\launch-chrome.ps1
+```
+*(Log in to your job portals once in the opened window; cookies remain saved permanently in `$HOME\.chrome-job-terminator`)*
+
+#### 4. Start the Service
+```powershell
+.\venv\Scripts\python.exe -m src.main
+```
+
+> [!TIP]
+> **Windows Firewall Prompt**: When starting the service, Windows Defender Firewall may prompt you to allow Python access. Check **Private Networks** to allow Docker Desktop containers (via WSL 2 vEthernet) to reach port `8000`.
 
 ---
 
-### Step 3: Configure Environment Variables (`.env`)
+## ⚙️ Environment Configuration (`.env`)
 
-Copy the example template:
+Copy the example template on either OS:
 ```bash
+# macOS
 cp .env.example .env
+
+# Windows
+copy .env.example .env
 ```
 
-Edit `.env` and set your credentials:
+Edit `.env` and fill in your keys:
 
 ```env
-# ===================================================================
-# Job Terminator Configuration
-# ===================================================================
-
 # OpenAI API Key (Required for browser-use agent with gpt-4o)
 OPENAI_API_KEY=sk-proj-your_openai_api_key_here
 
 # Chrome Remote Debugging (CDP) URL
 CHROME_CDP_URL=http://localhost:9222
 
-# Service Binding
+# Service Binding (0.0.0.0 is mandatory for Docker containers to connect)
 PORT=8000
 HOST=0.0.0.0
 
@@ -168,121 +210,34 @@ DEFAULT_RESUME_PDF_URL=https://admin.chaldea.foundation/uploads/gonzalo_salvador
 # "autonomous": Submits applications directly without human confirmation
 AUTONOMY_MODE=semi-autonomous
 
-# Temp directory to store downloaded CVs for browser-use upload
+# Temp directory for downloaded CVs
 TEMP_DIR=./temp_resumes
 ```
-
-#### Environment Variables Reference:
-| Variable | Required | Description |
-| :--- | :--- | :--- |
-| `OPENAI_API_KEY` | **Yes** | OpenAI API key with access to `gpt-4o`. |
-| `STRAPI_API_TOKEN` | **Yes** | Strapi API Token with Read permissions for `updated-resume` and `j-job-radars`. |
-| `STRAPI_API_URL` | **Yes** | Base URL of your Strapi instance (`https://admin.chaldea.foundation`). |
-| `CHROME_CDP_URL` | No | CDP listener URL (defaults to `http://localhost:9222`). |
-| `HOST` | No | Defaults to `0.0.0.0` so containers inside OrbStack can reach the service. |
-| `PORT` | No | Defaults to `8000`. |
-| `AUTONOMY_MODE` | No | `semi-autonomous` (stops at review screen) or `autonomous` (clicks Submit). |
-
----
-
-### Step 4: Launch Chrome with CDP & Persistent Profile
-
-Modern Chrome blocks remote debugging against the standard default profile to prevent infostealers from extracting credentials. We launch Chrome pointing to a persistent automation profile at `$HOME/.chrome-job-terminator`.
-
-#### On macOS:
-Make the helper script executable and run it:
-```bash
-chmod +x scripts/launch-chrome.sh scripts/manual-trigger.sh
-./scripts/launch-chrome.sh
-```
-
-#### On Windows (if running on Windows host):
-```powershell
-.\scripts\launch-chrome.ps1
-```
-
-> [!IMPORTANT]
-> **One-Time Manual Login**:
-> The first time this dedicated Chrome window opens, log into your job search accounts (LinkedIn, Indeed, Glassdoor, Greenhouse, Lever, etc.).
-> Because the user data directory is persistent (`~/.chrome-job-terminator`), your login cookies and sessions will remain permanently saved for all future automated runs. You will **not** need to log in again.
-
----
-
-### Step 5: Start the Job Terminator FastAPI Service
-
-```bash
-# Ensure venv is activated
-source venv/bin/activate
-
-# Start the server
-python -m src.main
-```
-
-The service will be listening on `http://0.0.0.0:8000`. You can inspect:
-- **Interactive Swagger Documentation**: `http://localhost:8000/docs`
-- **Service & CDP Health Check**: `http://localhost:8000/health`
-- **Candidate Profile JSON Check**: `http://localhost:8000/profile`
 
 ---
 
 ## 🎮 Manual Trigger & Testing CLI
 
-Before triggering full batch runs from n8n or Strapi webhooks, verify each component individually:
+Before launching automated batches from n8n, test each subsystem individually:
 
-### 1. Test Strapi Connection & Resume Ingestion
-Tests fetching your profile JSON and querying the latest job from `j-job-radars`:
-```bash
-# macOS
-./scripts/manual-trigger.sh --test-strapi
-
-# Windows
-.\scripts\manual-trigger.ps1 -TestStrapi
-```
-
-### 2. Test Chrome CDP Navigation
-Opens a test tab in your Chrome instance via `browser-use` to verify the AI has control:
-```bash
-# macOS
-./scripts/manual-trigger.sh --test-browser
-
-# Windows
-.\scripts\manual-trigger.ps1 -TestBrowser
-```
-
-### 3. Apply to the Latest Job from Strapi
-Pulls the newest job entry from Strapi `j-job-radars` and runs the application flow:
-```bash
-# macOS
-./scripts/manual-trigger.sh --latest-strapi
-
-# Windows
-.\scripts\manual-trigger.ps1 -LatestStrapi
-```
-
-### 4. Apply to Any Arbitrary Job URL Directly
-```bash
-# macOS
-./scripts/manual-trigger.sh --url "https://jobs.lever.co/company/example" --title "Senior Backend Engineer"
-
-# Windows
-.\scripts\manual-trigger.ps1 -Url "https://jobs.lever.co/company/example" -Title "Senior Backend Engineer"
-```
-
-### 5. Interactive Swagger UI (One-Click Testing)
-1. Open **`http://localhost:8000/docs`** in your browser.
-2. Expand **`POST /trigger/latest-strapi`**.
-3. Click **"Try it out"** > **"Execute"**.
+| Purpose | 🍎 macOS Command | 🪟 Windows Command |
+| :--- | :--- | :--- |
+| **Verify Strapi Token & Resume** | `./scripts/manual-trigger.sh --test-strapi` | `.\scripts\manual-trigger.ps1 -TestStrapi` |
+| **Verify Chrome CDP Control** | `./scripts/manual-trigger.sh --test-browser` | `.\scripts\manual-trigger.ps1 -TestBrowser` |
+| **Apply to Latest Strapi Job** | `./scripts/manual-trigger.sh --latest-strapi` | `.\scripts\manual-trigger.ps1 -LatestStrapi` |
+| **Apply to Custom Job Link** | `./scripts/manual-trigger.sh --url "https://..."` | `.\scripts\manual-trigger.ps1 -Url "https://..."` |
+| **Interactive Swagger UI** | `http://localhost:8000/docs` | `http://localhost:8000/docs` |
 
 ---
 
-## 🔄 Detailed n8n Integration Guide (with OrbStack)
+## 🔄 Detailed n8n Integration Guide
 
-The repository provides an importable workflow file at [`workflows/n8n-job-terminator-workflow.json`](file:///C:/Users/gonza/OneDrive/Desktop/localhost/job-terminator/workflows/n8n-job-terminator-workflow.json).
+The workflow definition is located at [`workflows/n8n-job-terminator-workflow.json`](file:///C:/Users/gonza/OneDrive/Desktop/localhost/job-terminator/workflows/n8n-job-terminator-workflow.json).
 
-### How to Import into n8n
+### How to Import into n8n (OrbStack or Docker Desktop)
 
 1. Open your n8n web dashboard (`http://localhost:5678`).
-2. Navigate to **Workflows** on the left navigation sidebar.
+2. Navigate to **Workflows** on the left sidebar.
 3. Click the **`...` (Options menu)** in the upper-right corner of the canvas and select **"Import from File..."**.
 4. Upload `workflows/n8n-job-terminator-workflow.json`.
 5. The pipeline will appear on your canvas.
@@ -340,7 +295,7 @@ The repository provides an importable workflow file at [`workflows/n8n-job-termi
 #### Node 6: `Trigger Job Terminator Agent`
 - **Type**: `n8n-nodes-base.httpRequest`
 - **HTTP Method**: `POST`
-- **URL**: `http://host.docker.internal:8000/apply` (or `http://mac.orb.local:8000/apply`)
+- **URL**: `http://host.docker.internal:8000/apply` (works identically on both OrbStack and Docker Desktop)
 - **Headers**: `Content-Type: application/json`
 - **JSON Body**:
   ```json
@@ -371,48 +326,42 @@ The repository provides an importable workflow file at [`workflows/n8n-job-termi
 
 ---
 
-## 🌐 OrbStack & Docker Networking Specifics
+## 🌐 Container-to-Host Networking (OrbStack vs Docker Desktop)
 
-When running n8n inside Docker using **OrbStack** on macOS, container-to-host networking behaves as follows:
+Both container environments support reaching the host machine using the exact same standard URL:
 
-1. **Host Reachability**:
-   - Containers in OrbStack can reach host services via **`http://host.docker.internal:8000`** or **`http://mac.orb.local:8000`**.
-   - Because `job-terminator` binds to `0.0.0.0:8000`, it listens on all network interfaces, allowing OrbStack's container bridge to communicate seamlessly.
-2. **Port Forwarding**:
-   - OrbStack exposes container ports (like n8n on `5678`) directly on your Mac host without additional configuration.
-3. **Intel Mac Mini Performance**:
-   - Because the 2018 Mac Mini has an Intel Core i5 (x86_64), all Docker images run in native `linux/amd64` architecture with zero emulation overhead.
+```
+http://host.docker.internal:8000
+```
+
+1. **Docker Desktop (Windows 11)**:
+   - `host.docker.internal` is baked into the WSL 2 DNS resolver. Any container can reach Windows host ports directly.
+2. **OrbStack (macOS Sequoia)**:
+   - OrbStack natively resolves `host.docker.internal` as well as `mac.orb.local` to the Mac host.
+3. **Binding Requirement**:
+   - `src/main.py` binds to `0.0.0.0` (all interfaces) rather than `127.0.0.1`. This allows the virtual network adapter of either container engine to reach the host application.
 
 ---
 
-## 💡 Important Things to Know & Troubleshooting
+## 💡 Operational Notes & Troubleshooting
 
-### 1. macOS Sequoia Sleep Prevention
-On a headless or standalone Mac Mini, macOS Sequoia may attempt to put system sleep or display sleep into effect:
-- Go to **System Settings > Energy Saver**.
-- Enable **"Prevent automatic sleeping when the display is off"**.
-- Alternatively, run `caffeinate -dis` in a background terminal if needed.
+### 1. Dedicated Automation Profile vs Main Profile (Chrome 136+)
+- Starting in Chrome 136, Chrome prohibits remote debugging flags on the default user profile directory.
+- `job-terminator` uses an isolated automation directory (`~/.chrome-job-terminator` on macOS, `$HOME\.chrome-job-terminator` on Windows).
+- If port 9222 is busy:
+  - **macOS**: `lsof -i :9222` to find the process ID.
+  - **Windows**: `Get-NetTCPConnection -LocalPort 9222` to check active listeners.
 
-### 2. macOS Accessibility / Automation Permissions
-macOS Sequoia enforces strict privacy controls. If Playwright or Chrome displays a permission dialog:
-- Go to **System Settings > Privacy & Security > Accessibility** (and **Screen Recording** if requested).
-- Allow **Terminal** (or iTerm2 / Python) access.
+### 2. Semi-Autonomous vs Autonomous Modes
+- **`semi-autonomous` (Default & Recommended)**: The agent fills every form field, uploads the CV, proceeds to the review screen, and stops. It takes a screenshot and alerts you so you can give it a 5-second human review and click Submit.
+- **`autonomous`**: The agent clicks "Submit" automatically. Set `AUTONOMY_MODE=autonomous` in `.env` to enable.
 
-### 3. Dedicated Chrome Profile vs Main Profile (Chrome 136+)
-- If you see `Cannot connect to port 9222`, ensure `./scripts/launch-chrome.sh` is running and that no orphaned Chrome instance is holding the port.
-- Check active listeners on macOS:
-  ```bash
-  lsof -i :9222
-  ```
+### 3. CAPTCHAs, Cloudflare Turnstile & 2FA
+- When bot challenges or 2FA prompts appear, the agent pauses and sets `status: "captcha_detected"`.
+- Because Chrome runs in standard GUI mode on your desktop, you can solve the puzzle manually in the open window, and the agent will continue.
 
-### 4. CAPTCHAs, Cloudflare Turnstile & 2FA
-- If a Cloudflare challenge or 2FA verification appears, `browser-use` pauses and returns `status: "captcha_detected"`.
-- Because Chrome is running as a regular desktop window on your Mac Mini, you can access the display (via VNC / Screen Sharing) and solve the puzzle manually.
-
-### 5. Resume & Document Fallback Logic
-- If `custom_cv` is attached in Strapi for that job, it is downloaded to `temp_resumes/` and uploaded to the application form.
-- If `custom_cv` is null, it falls back to your default resume PDF URL specified in `.env`.
-- Form text fields (experience, skills, email, website, GitHub) are dynamically populated using the JSON resume from Strapi.
+### 4. macOS Sequoia Energy Settings
+- If running on a headless or background Mac Mini, enable **"Prevent automatic sleeping when the display is off"** under *System Settings > Energy Saver* or run `caffeinate -dis` in a background terminal.
 
 ---
 
@@ -422,7 +371,7 @@ macOS Sequoia enforces strict privacy controls. If Playwright or Chrome displays
 job-terminator/
 ├── .env.example                         # Environment variables template
 ├── .gitignore                           # Excludes venv, Chrome profile, temp PDFs
-├── README.md                            # Comprehensive documentation & guide
+├── README.md                            # Complete dual-host documentation
 ├── requirements.txt                     # Python dependencies
 ├── run_manual.py                        # CLI testing & manual trigger runner
 ├── scripts/
