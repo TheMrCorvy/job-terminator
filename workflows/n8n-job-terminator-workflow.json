@@ -1,0 +1,180 @@
+{
+  "name": "Job Terminator - Strapi to Browser-Use Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "job-terminator-trigger",
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "id": "1",
+      "name": "Strapi Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        300
+      ],
+      "webhookId": "job-terminator-trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://admin.chaldea.foundation/api/j-job-radars?populate=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_STRAPI_TOKEN_HERE"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2",
+      "name": "Fetch Jobs From Strapi",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        420,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.first().json.data || [];\nreturn items.map(item => ({\n  json: {\n    id: item.id || item.documentId,\n    job_title: item.job_title || (item.attributes && item.attributes.job_title),\n    company_name: item.company_name || (item.attributes && item.attributes.company_name),\n    job_post_link: item.job_post_link || (item.attributes && item.attributes.job_post_link),\n    cover_letter: item.cover_letter || (item.attributes && item.attributes.cover_letter),\n    platform: item.platform || (item.attributes && item.attributes.platform),\n    custom_cv_url: item.custom_cv ? (item.custom_cv.url || (item.custom_cv.data && item.custom_cv.data.attributes && item.custom_cv.data.attributes.url)) : null\n  }\n}));"
+      },
+      "id": "3",
+      "name": "Format Job Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "4",
+      "name": "Loop Over Each Job",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        860,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/apply",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"job_id\": \"{{ $json.id }}\",\n  \"job_title\": \"{{ $json.job_title }}\",\n  \"company_name\": \"{{ $json.company_name }}\",\n  \"job_post_link\": \"{{ $json.job_post_link }}\",\n  \"custom_cv_url\": \"{{ $json.custom_cv_url }}\",\n  \"cover_letter\": \"{{ $json.cover_letter }}\",\n  \"autonomy_mode\": \"semi-autonomous\"\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "5",
+      "name": "Trigger Job Terminator Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "id": "6",
+      "name": "Pause Between Applications",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Strapi Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Jobs From Strapi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Jobs From Strapi": {
+      "main": [
+        [
+          {
+            "node": "Format Job Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Job Items": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Each Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Each Job": {
+      "main": [
+        [
+          {
+            "node": "Trigger Job Terminator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Trigger Job Terminator Agent": {
+      "main": [
+        [
+          {
+            "node": "Pause Between Applications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause Between Applications": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Each Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
