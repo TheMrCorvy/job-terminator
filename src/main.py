@@ -53,6 +53,31 @@ async def apply_to_job(req: JobApplicationRequest):
     result = await job_agent.apply_to_job(req)
     return result
 
+@app.post("/trigger/latest-strapi", response_model=JobApplicationResult)
+async def trigger_latest_from_strapi(autonomy_mode: str = "semi-autonomous"):
+    """
+    Manual trigger: Fetches the most recent job posting from Strapi V5 j-job-radars
+    and runs the application agent immediately.
+    """
+    latest = await resume_loader.fetch_latest_job()
+    if not latest or not latest.get("job_post_link"):
+        raise HTTPException(
+            status_code=404,
+            detail="No job posting with a valid job_post_link was found in Strapi j-job-radars."
+        )
+
+    req = JobApplicationRequest(
+        job_id=latest.get("job_id"),
+        job_title=latest.get("job_title"),
+        company_name=latest.get("company_name"),
+        job_post_link=latest.get("job_post_link"),
+        custom_cv_url=latest.get("custom_cv_url"),
+        cover_letter=latest.get("cover_letter"),
+        autonomy_mode=autonomy_mode
+    )
+
+    return await job_agent.apply_to_job(req)
+
 if __name__ == "__main__":
     uvicorn.run(
         "src.main:app",

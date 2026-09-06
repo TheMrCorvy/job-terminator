@@ -113,4 +113,45 @@ class ResumeLoader:
 
         return local_path.resolve()
 
+    async def fetch_latest_job(self) -> Optional[Dict[str, Any]]:
+        """Fetches the most recent job posting from Strapi V5 j-job-radars."""
+        url = f"{settings.STRAPI_API_URL.rstrip('/')}/api/j-job-radars?sort[0]=createdAt:desc&pagination[limit]=1&populate=*"
+        headers = {}
+        if settings.STRAPI_API_TOKEN:
+            headers["Authorization"] = f"Bearer {settings.STRAPI_API_TOKEN}"
+
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.get(url, headers=headers)
+                if res.status_code == 200:
+                    data = res.json().get("data", [])
+                    if data:
+                        item = data[0]
+                        attrs = item.get("attributes", item)
+                        custom_cv = attrs.get("custom_cv") or {}
+                        cv_url = None
+                        if isinstance(custom_cv, dict):
+                            cv_url = custom_cv.get("url") or (
+                                custom_cv.get("data", {}).get("attributes", {}).get("url")
+                                if isinstance(custom_cv.get("data"), dict) else None
+                            )
+                        return {
+                            "job_id": str(item.get("id") or item.get("documentId")),
+                            "job_title": attrs.get("job_title"),
+                            "company_name": attrs.get("company_name"),
+                            "job_post_link": attrs.get("job_post_link"),
+                            "cover_letter": attrs.get("cover_letter"),
+                            "custom_cv_url": cv_url,
+                            "platform": attrs.get("platform")
+                        }
+                    else:
+                        print("[ResumeLoader] No job entries found in Strapi j-job-radars.")
+                else:
+                    print(f"[ResumeLoader] Received status {res.status_code} from Strapi: {res.text}")
+        except Exception as e:
+            print(f"[ResumeLoader] Error fetching latest job: {e}")
+
+        return None
+
 resume_loader = ResumeLoader()
+

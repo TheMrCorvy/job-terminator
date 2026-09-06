@@ -20,6 +20,17 @@
       "webhookId": "job-terminator-trigger"
     },
     {
+      "parameters": {},
+      "id": "0",
+      "name": "When clicking 'Test workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        200,
+        140
+      ]
+    },
+    {
       "parameters": {
         "url": "https://admin.chaldea.foundation/api/j-job-radars?populate=*",
         "sendHeaders": true,
@@ -105,6 +116,17 @@
     }
   ],
   "connections": {
+    "When clicking 'Test workflow'": {
+      "main": [
+        [
+          {
+            "node": "Fetch Jobs From Strapi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Strapi Webhook Trigger": {
       "main": [
         [
