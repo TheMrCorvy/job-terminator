@@ -365,6 +365,24 @@ http://host.docker.internal:8000
 
 ---
 
+## 🧩 Modular Prompt Templates (Domain-Driven Routing)
+
+The agent dynamically selects custom prompt templates tailored to the target job portal based on the URL domain:
+
+| Domain Match | Template | Custom Strategy & Rules |
+| :--- | :--- | :--- |
+| `*.indeed.com` | `IndeedPromptTemplate` | Prioritizes *"Usa tu CV de Indeed"*, blacklists *"Guardar y cerrar"*, enforces scrolling to bottom for *"Enviá tu postulación"*. |
+| `*.epam.com` | `EpamPromptTemplate` | Mandatory PDF resume upload, English C1/Advanced selection, checks mandatory GDPR/privacy consent boxes, submits via *"Submit application"*. |
+| `*.linkedin.com` | `LinkedInPromptTemplate` | Uses saved LinkedIn profile resume, handles Easy Apply (*"Solicitud sencilla"*), advances via *"Next"*, submits via *"Enviar solicitud"*. |
+| *All others* | `GenericAtsPromptTemplate` | Fallback for standard corporate ATS portals (Greenhouse, Lever, Workday, SmartRecruiters, etc.) with file upload and form filling. |
+
+### How to Add a New Custom Site Template
+1. Create a new file in `src/prompts/<site_name>.py` subclassing `BasePromptTemplate`.
+2. Implement `matches(self, domain: str) -> bool` and `build_prompt(...)`.
+3. Register your new template in `src/prompts/router.py` inside `PromptRouter.__init__()`.
+
+---
+
 ## 📂 Project Structure
 
 ```
@@ -383,8 +401,16 @@ job-terminator/
 │   ├── __init__.py
 │   ├── config.py                        # Settings & environment parser
 │   ├── resume_loader.py                 # Strapi resume JSON fetcher & PDF downloader
-│   ├── agent.py                         # browser-use agent with gpt-4o & guardrails
-│   └── main.py                          # FastAPI endpoints (/apply, /health, /trigger)
+│   ├── agent.py                         # browser-use agent with tab cleanup & CDP control
+│   ├── main.py                          # FastAPI endpoints (/apply, /health, /trigger)
+│   └── prompts/                         # Domain-driven modular prompt templates
+│       ├── __init__.py
+│       ├── base.py                      # BasePromptTemplate abstract class & helpers
+│       ├── router.py                    # Domain router & template matcher
+│       ├── indeed.py                    # Indeed-specific prompt template
+│       ├── epam.py                      # EPAM Careers-specific prompt template
+│       ├── linkedin.py                  # LinkedIn Easy Apply prompt template
+│       └── generic.py                   # Fallback ATS prompt template (Greenhouse, etc.)
 └── workflows/
     └── n8n-job-terminator-workflow.json # Ready-to-import n8n workflow
 ```

@@ -1,11 +1,13 @@
 import asyncio
 from pathlib import Path
 from typing import Optional, Dict, Any
+import httpx
 from pydantic import BaseModel
 from browser_use import Agent, Browser, ChatOpenAI
 
 from src.config import settings
 from src.resume_loader import resume_loader
+from src.prompts import prompt_router
 
 class JobApplicationRequest(BaseModel):
     job_id: Optional[str] = None
@@ -29,6 +31,37 @@ class JobApplicationAgent:
     def get_browser(self) -> Browser:
         # Re-use or connect to the existing Chrome instance over CDP
         return Browser(cdp_url=settings.CHROME_CDP_URL)
+
+    async def prepare_clean_tab(self, target_url: str):
+        """
+        Ensures Chrome starts on a clean tab loaded with the target job URL,
+        closing any lingering tabs from previous jobs (e.g. past confirmation screens).
+        """
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                base = settings.CHROME_CDP_URL.rstrip("/")
+                res = await client.get(f"{base}/json/list")
+                if res.status_code != 200:
+                    return
+
+                targets = res.json()
+                old_page_ids = [t["id"] for t in targets if t.get("type") == "page"]
+
+                # Open fresh tab navigating directly to the new job
+                new_tab_res = await client.put(f"{base}/json/new?{target_url}")
+                if new_tab_res.status_code == 200:
+                    new_tab_id = new_tab_res.json().get("id")
+                    await client.get(f"{base}/json/activate/{new_tab_id}")
+
+                    # Close previously open page tabs so the agent doesn't see old confirmation screens
+                    for old_id in old_page_ids:
+                        if old_id != new_tab_id:
+                            try:
+                                await client.get(f"{base}/json/close/{old_id}")
+                            except Exception:
+                                pass
+        except Exception as e:
+            print(f"[Agent] Note: Could not prepare clean tab via CDP: {e}")
 
     async def apply_to_job(self, req: JobApplicationRequest) -> JobApplicationResult:
         if not settings.OPENAI_API_KEY:
@@ -58,10 +91,19 @@ class JobApplicationAgent:
         mode = req.autonomy_mode or settings.AUTONOMY_MODE
         is_semi_autonomous = (mode == "semi-autonomous")
 
-        # 4. Formulate task instruction prompt
-        instructions = self._build_prompt(req, cv_path, applicant_context, is_semi_autonomous)
+        # 4. Formulate task instruction prompt using domain-matched template
+        template = prompt_router.get_template(req.job_post_link)
+        instructions = template.build_prompt(
+            req=req,
+            cv_path=cv_path,
+            applicant_context=applicant_context,
+            is_semi_autonomous=is_semi_autonomous
+        )
 
-        # 5. Initialize LLM and browser-use Agent
+        # 5. Ensure Chrome is clean and focused on a single tab with the target job URL
+        await self.prepare_clean_tab(req.job_post_link)
+
+        # 6. Initialize LLM and browser-use Agent
         llm = ChatOpenAI(
             model="gpt-4o",
             api_key=settings.OPENAI_API_KEY,
@@ -79,7 +121,7 @@ class JobApplicationAgent:
         )
 
         try:
-            print(f"[Agent] Starting application run for {req.job_post_link} (Mode: {mode})...")
+            print(f"[Agent] Starting application run for {req.job_post_link} (Mode: {mode}, Template: {template.name})...")
             history = await agent.run()
 
             # Parse completion status from agent history
@@ -101,6 +143,7 @@ class JobApplicationAgent:
                     "job_id": req.job_id,
                     "job_post_link": req.job_post_link,
                     "autonomy_mode": mode,
+                    "template_used": template.name,
                     "cv_file_used": str(cv_path)
                 }
             )
@@ -120,51 +163,13 @@ class JobApplicationAgent:
         applicant_context: str,
         is_semi_autonomous: bool
     ) -> str:
-        prompt_parts = [
-            f"You are an automated job application agent. Your goal is to apply for the following job posting:\n"
-            f"- Job URL: {req.job_post_link}",
-            f"- Job Title: {req.job_title or 'N/A'}",
-            f"- Company: {req.company_name or 'N/A'}\n",
-            "### APPLICANT INFORMATION:",
-            applicant_context,
-            f"\n### RESUME / CV FILE TO UPLOAD:",
-            f"- Absolute path: {str(cv_path.resolve())}",
-            "Whenever there is an 'Upload Resume' / 'CV' file input element, upload this file.\n"
-        ]
-
-        if req.cover_letter:
-            prompt_parts.append(
-                f"### COVER LETTER TO USE:\n{req.cover_letter}\n"
-                "If there is a Cover Letter text area or upload field, provide or paste this content.\n"
-            )
-
-        prompt_parts.append("### STEP-BY-STEP INSTRUCTIONS:")
-        prompt_parts.append("1. Navigate to the job URL.")
-        prompt_parts.append("2. If the page presents an 'Apply', 'Easy Apply', or application form button, click it.")
-        prompt_parts.append("3. Accurately fill in the contact details, work history, links, and education matching the applicant profile above.")
-        prompt_parts.append("4. Upload the provided resume PDF to the file attachment field.")
-        
-        if is_semi_autonomous:
-            prompt_parts.append(
-                "\n### 🛑 CRITICAL HUMAN-IN-THE-LOOP RULE:\n"
-                "- Fill out every field on every step.\n"
-                "- Proceed until you reach the final review or confirmation screen.\n"
-                "- DO NOT CLICK THE FINAL 'Submit', 'Submit Application', or 'Finish' BUTTON.\n"
-                "- Stop on the final screen so the applicant can visually review the inputs and click submit manually.\n"
-                "- Finish the task with a summary of the fields filled and note that it is waiting for manual submission."
-            )
-        else:
-            prompt_parts.append(
-                "\n### AUTONOMOUS SUBMISSION RULE:\n"
-                "- Review all fields and click the final 'Submit Application' button to complete the process."
-            )
-
-        prompt_parts.append(
-            "\n### SECURITY & CAPTCHA RULE:\n"
-            "- If a CAPTCHA, Cloudflare challenge, or 2FA verification appears, DO NOT try to bypass it. "
-            "Stop immediately and state clearly that a CAPTCHA was encountered."
+        """Delegates prompt construction to the modular prompt_router."""
+        template = prompt_router.get_template(req.job_post_link)
+        return template.build_prompt(
+            req=req,
+            cv_path=cv_path,
+            applicant_context=applicant_context,
+            is_semi_autonomous=is_semi_autonomous
         )
-
-        return "\n".join(prompt_parts)
 
 job_agent = JobApplicationAgent()
