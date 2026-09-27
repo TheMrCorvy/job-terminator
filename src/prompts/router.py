@@ -28,9 +28,15 @@ class PromptRouter:
         except Exception:
             return ""
 
-    def get_template(self, url: str) -> BasePromptTemplate:
-        """Finds and returns the best matching prompt template for the given URL."""
+    def get_template(self, url: str, company_name: str = "") -> BasePromptTemplate:
+        """Finds and returns the best matching prompt template for the given URL and company."""
         domain = self.extract_domain(url)
+        company_lower = (company_name or "").lower()
+
+        # If the target employer is EPAM (even if accessed via Indeed or another aggregator), use EpamPromptTemplate
+        if "epam" in company_lower or "epam" in domain:
+            print(f"[PromptRouter] Target company '{company_name}' / domain '{domain}' -> Using EpamPromptTemplate")
+            return EpamPromptTemplate()
         
         for template in self.templates:
             if template.matches(domain):

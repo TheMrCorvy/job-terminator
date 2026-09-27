@@ -24,9 +24,18 @@ class IndeedPromptTemplate(BasePromptTemplate):
             self._build_header(req),
             self._build_applicant_section(applicant_context),
             f"### LOCAL RESUME / CV FILE (FALLBACK ONLY):\n- Absolute path: {str(cv_path.resolve())}\n\n",
-            "### [INDEED CV / RESUME SELECTION RULES]:",
-            "1. When applying on Indeed, ALWAYS look for and select the radio option / button 'Usa tu CV de Indeed' (or 'Usar CV de Indeed' / 'Indeed Resume').",
-            "2. DO NOT upload the local PDF file if 'Usa tu CV de Indeed' is present.\n"
+            "### [INDEED APPLICATION TYPES - CRITICAL]:\n"
+            "There are two types of jobs on Indeed:\n"
+            "A) DIRECT INDEED APPLY ('Postularse', 'Postularme ahora', 'Apply now'):\n"
+            "   - The entire process happens within Indeed.\n"
+            "   - ALWAYS look for and select the radio option 'Usa tu CV de Indeed' (DO NOT upload PDF).\n"
+            "   - Advance through the steps using 'Continuar' / 'Siguiente'.\n"
+            "B) EXTERNAL COMPANY SITE ('Postularse en la página de la empresa' / 'Apply on company site'):\n"
+            "   - Clicking this opens the employer's external website in a new tab (e.g. EPAM Careers, Greenhouse, Lever).\n"
+            "   - Switch to the external tab immediately.\n"
+            "   - CRITICAL: DO NOT look for 'Usa tu CV de Indeed' or Indeed-specific buttons on the external company site!\n"
+            "   - Fill the application form on the company's site using the APPLICANT PROFILE SUMMARY.\n"
+            "   - If the company is EPAM (epam.com): click 'apply' to open modal, fill contact info, current city ('Mar del Plata'), select 'Node.js' as primary skill, click 'LinkedIn profile' radio (never CV) and type handle 'gonzalo-salvador-corvalan', check the Privacy Notice checkbox, and locate the 'Submit' button.\n"
         ]
 
         if req.cover_letter:
@@ -35,9 +44,10 @@ class IndeedPromptTemplate(BasePromptTemplate):
         prompt_parts.append(
             "### [INDEED APPLICATION NAVIGATION]:\n"
             "1. Navigate to the job URL.\n"
-            "2. Click the initial application button (e.g., 'Postularse', 'Postularme', 'Postularme ahora', 'Apply now', 'Easy Apply').\n"
-            "3. Answer contact details, questions, years of experience, and links matching the applicant profile above.\n"
-            "4. To advance between steps, click forward buttons like 'Continuar', 'Siguiente', 'Next', 'Continue', or 'Revisar tu postulación' / 'Review'."
+            "2. Click the initial application button (e.g. 'Postularse', 'Postularme', 'Postularse en la página de la empresa', 'Apply now').\n"
+            "3. If an external tab opens, switch to it and complete the company form.\n"
+            "4. Answer contact details, questions, years of experience, and links matching the applicant profile above.\n"
+            "5. To advance between steps on Indeed, click forward buttons like 'Continuar', 'Siguiente', 'Next', 'Continue', or 'Revisar tu postulación' / 'Review'."
         )
 
         prompt_parts.append(

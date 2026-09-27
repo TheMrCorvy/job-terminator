@@ -91,8 +91,8 @@ class JobApplicationAgent:
         mode = req.autonomy_mode or settings.AUTONOMY_MODE
         is_semi_autonomous = (mode == "semi-autonomous")
 
-        # 4. Formulate task instruction prompt using domain-matched template
-        template = prompt_router.get_template(req.job_post_link)
+        # 4. Formulate task instruction prompt using domain/company-matched template
+        template = prompt_router.get_template(req.job_post_link, company_name=req.company_name or "")
         instructions = template.build_prompt(
             req=req,
             cv_path=cv_path,
@@ -117,7 +117,7 @@ class JobApplicationAgent:
             llm=llm,
             browser=browser,
             available_file_paths=[str(cv_path.resolve())],
-            max_actions_per_step=3
+            max_actions_per_step=1
         )
 
         try:
@@ -164,7 +164,7 @@ class JobApplicationAgent:
         is_semi_autonomous: bool
     ) -> str:
         """Delegates prompt construction to the modular prompt_router."""
-        template = prompt_router.get_template(req.job_post_link)
+        template = prompt_router.get_template(req.job_post_link, company_name=req.company_name or "")
         return template.build_prompt(
             req=req,
             cv_path=cv_path,
